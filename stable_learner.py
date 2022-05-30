@@ -7,6 +7,9 @@ from Cogenvdecoder.CogEnvDecoder import CogEnvDecoder
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.noise import NormalActionNoise
+import numpy as np
+
 
 baseline_models_path = "C:\\Users\\Administrator\\PycharmProjects\\2022-cog-cim2real\\stable_baseline_models"
 
@@ -32,22 +35,21 @@ def init_env(worker_number=1):
 def init_model(env):
     # Custom actor and critic architecture
     # Create the agent
-    # model = PPO("MlpPolicy",
-    #             env,
-    #             use_sde=True,
-    #             policy_kwargs=dict(net_arch=[512, 512, 256]),
-    #             verbose=1,
-    #             tensorboard_log="./log/",
-    #             )
-    model = TD3("MlpPolicy",
+    action_noise = NormalActionNoise(mean=np.zeros(1), sigma=0.1*np.ones(1))
+    model = PPO("MlpPolicy",
                 env,
-                policy_kwargs=dict(net_arch=dict(pi=[512, 256, 256], qf=[512, 256, 256])),
+                policy_kwargs=dict(net_arch=[256, 256, dict(vf=[128], pi=[128])]),
                 verbose=1,
-                tensorboard_log="./log/"
+                tensorboard_log="./log/",
                 )
+    # model = TD3("MlpPolicy",
+    #             env,
+    #             policy_kwargs=dict(net_arch=dict(pi=[512, 256, 256], qf=[512, 256, 256])),
+    #             verbose=1,
+    #             tensorboard_log="./log/"
+    #             )
     # model = A2C("MlpPolicy",
     #             env,
-    #             use_sde=True,
     #             policy_kwargs=dict(net_arch=[512, 512, 256]),
     #             verbose=1,
     #             tensorboard_log="./log/",
@@ -83,7 +85,7 @@ def evaluate(model_path):
 
 
 def learn():
-    env = init_env_vec([1])
+    env = init_env_vec([1, 2, 3])
     model = init_model(env)
     train(model)
 
@@ -97,7 +99,7 @@ def continual_learn(model_path):
 
 def main():
     learn()
-    # continual_learn("stable_baseline_models/model_05_29_20_40_58_mean_reward_-1314.08826")
+    # continual_learn("stable_baseline_models/model_05_30_09_32_45_mean_reward_-65561.360782")
 
 
 if __name__ == '__main__':
