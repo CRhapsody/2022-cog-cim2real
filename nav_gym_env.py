@@ -46,14 +46,14 @@ class NavEnvironment(gym.Env):
         self.observation_space = spaces.Dict(spaces={
             # "image": spaces.Box(low=0, high=1, shape=(3, 64, 64), dtype=np.float32),
             "laser": spaces.Box(low=0, high=1, shape=(1, 61), dtype=np.float32),
-            "vec": spaces.Box(low=0, high=1, shape=(7, ), dtype=np.float32)
+            "vec": spaces.Box(low=0, high=1, shape=(4, ), dtype=np.float32)
         })
         # curr_goal表示目前的导航任务正在寻找的目标点是哪个目标点。
         self.curr_goal = 1
         # time_taken表示当前花费的时间
         self.time_taken = 0
-        self._obs_state = None
-        self._dict_state = None
+        self.obs_state = None
+        self.dict_state = None
 
     def transform_state(self, state, judge_result):
         _, time_taken, _, flag_ach = judge_result
@@ -89,7 +89,13 @@ class NavEnvironment(gym.Env):
         self_pos = vector_state[0]
         enemy_pos = vector_state[3]
         norm_self_pos = transform_pos(self_pos)
+        self_pos = self_pos[0], self_pos[1], 2*math.pi * norm_self_pos[-1]
         norm_enemy_pos = transform_pos(enemy_pos)
+
+        goal_infos = []
+        for i in range(1, 6):
+            goal_info = vector_state[4 + i]
+            goal_infos.append(goal_info)
 
         if 1 <= self.curr_goal <= 5:
             goal_info = vector_state[4+self.curr_goal]
@@ -97,24 +103,27 @@ class NavEnvironment(gym.Env):
             goal = [goal_x, goal_y]
             norm_goal = [goal_x/self.MAX_WIDTH, goal_y/self.MAX_HEIGHT]
         else:
-            goal = [self_pos[0] + 1e6, self_pos[1] + 1e6]
+            goal = [self_pos[0] + 1e-6, self_pos[1] + 1e-6]
             norm_goal = [norm_self_pos[0], norm_self_pos[1]]
 
         norm_collision = 0
         collision_info = vector_state[-1]
         _, _, distance = self.goal_distance(self_pos, goal)
-        goal_angle = abs(self.goal_angle(self_pos, goal))
+        norm_distance = distance / self.MAX_DISTANCE
+        goal_angle = self.goal_angle(self_pos, goal)
+        norm_abs_goal_angle = abs(goal_angle) / math.pi
         distance_variation = 0
         goal_angle_variation = 0
 
-        if self._dict_state is not None:
-            if collision_info[1] - self._dict_state["collision_info"][1] > 0:
+        if self.dict_state is not None:
+            if collision_info[1] - self.dict_state["collision_info"][1] > 0:
                 norm_collision = 1
-            distance_variation = distance - self._dict_state["distance"]
-            goal_angle_variation = goal_angle - self._dict_state["goal_angle"]
+            distance_variation = distance - self.dict_state["distance"]
+            goal_angle_variation = abs(goal_angle) - abs(self.dict_state["goal_angle"])
 
-        rel_pos = [goal[0] - self_pos[0], goal[1] - self_pos[1], abs(self.goal_angle(self_pos, goal))]
-        norm_rel_pos = [rel_pos[0]/self.MAX_WIDTH, rel_pos[1]/self.MAX_HEIGHT, (rel_pos[2]/math.pi)]
+        rel_pos = [goal[0] - self_pos[0], goal[1] - self_pos[1], (self.goal_angle(self_pos, goal) + math.pi) / 2*math.pi]
+        norm_rel_pos = [rel_pos[0]/self.MAX_WIDTH, rel_pos[1]/self.MAX_HEIGHT, rel_pos[2]]
+
         time_taken = self.time_taken / self.MAX_TIME
         dict_state = {
             "laser": laser_list,
@@ -130,15 +139,18 @@ class NavEnvironment(gym.Env):
             "rel_pos": rel_pos,
             "norm_rel_pos": norm_rel_pos,
             "distance": distance,
+            "norm_distance": norm_distance,
             "distance_variation": distance_variation,
             "goal_angle": goal_angle,
+            "norm_abs_goal_angle": norm_abs_goal_angle,
             "goal_angle_variation": goal_angle_variation,
             "find_goal": find_goal,
-            "color_image": color_image
+            "color_image": color_image,
+            "goal_infos": goal_infos,
         }
         obs_state = {
             "laser": laser_list,
-            "vec": np.array(np.hstack([norm_self_pos, norm_rel_pos, norm_collision]), dtype=np.float32),
+            "vec": np.array(np.hstack([norm_self_pos[0], norm_self_pos[1], norm_distance, norm_abs_goal_angle]), dtype=np.float32),
             "image": color_image
         }
         # obs_state = np.array(np.hstack([laser_list, norm_self_pos, norm_enemy_pos, norm_collision, norm_goal]), dtype=np.float32)
@@ -149,9 +161,8 @@ class NavEnvironment(gym.Env):
         full_action = [action[0] * 2, action[1] * 2, action[2] * math.pi/4, 0]
         state, _, done, [info, judge_result] = self._Cog_env.step(full_action)
         # judge_result = [score, time_taken, dmg, flag_ach]
-        self._obs_state, self._dict_state = self.transform_state(state, judge_result)
+        self.obs_state, self.dict_state = self.transform_state(state, judge_result)
         reward = self.reward()
-        # 由于转换为单个目标的寻路任务，所以当到达第一个目标后直接done
         if self.curr_goal > 5 or done:
             if self.curr_goal > 5:
                 logging.info(f"env id: {self.env_id} find last goal.")
@@ -159,26 +170,27 @@ class NavEnvironment(gym.Env):
             else:
                 reward = -1000
             done = True
+            logging.info(f"env id: {self.env_id} episode finish.")
             if auto_reset:
                 self.reset()
-        return self._obs_state, reward, done, {"info": info, "judge_result": judge_result}
+        return self.obs_state, reward, done, {"info": info, "judge_result": judge_result, "dict_state": self.dict_state}
 
     def reward(self):
         find_goal_reward = 0
-        if self._dict_state["find_goal"]:
-            find_goal_reward = 500
+        if self.dict_state["find_goal"]:
+            find_goal_reward = 1000
 
         # _, _, distance = self.goal_distance(self._dict_state["self_pos"], self._dict_state["goal_pos"])
         # norm_distance = distance / self.MAX_DISTANCE
         # distance_reward = -norm_distance
-        distance_variation = self._dict_state["distance_variation"]
+        distance_variation = self.dict_state["distance_variation"]
         distance_reward = 0
         if distance_variation < 0:
             distance_reward = 1
         elif distance_variation > 0:
             distance_reward = -1
 
-        angle_variation = self._dict_state["goal_angle_variation"]
+        angle_variation = self.dict_state["goal_angle_variation"]
         angle_reward = 0
         if angle_variation < 0:
             angle_reward = 1
@@ -186,8 +198,8 @@ class NavEnvironment(gym.Env):
             angle_reward = -1
 
         collision_penalty = 0
-        if self._dict_state["norm_collision"] == 1:
-            collision_penalty = -50
+        if self.dict_state["norm_collision"] == 1:
+            collision_penalty = -200
         collision_reward = collision_penalty
 
         # abs_goal_angle = abs(self.goal_angle(self._dict_state["self_pos"], self._dict_state["goal_pos"]))
@@ -204,8 +216,8 @@ class NavEnvironment(gym.Env):
 
     def goal_distance(self, self_pos=None, goal_pos=None):
         if self_pos is None and goal_pos is None:
-            self_pos = self._dict_state["self_pos"]
-            goal_pos = self._dict_state["goal_pos"]
+            self_pos = self.dict_state["self_pos"]
+            goal_pos = self.dict_state["goal_pos"]
         self_pos_x, self_pos_y, _ = self_pos
         goal_pos_x, goal_pos_y = goal_pos
         distance = np.sqrt((self_pos_x - goal_pos_x) ** 2 + (self_pos_y - goal_pos_y) ** 2)
@@ -215,8 +227,8 @@ class NavEnvironment(gym.Env):
     # 已当前车辆方向为极坐标轴，取[-pi, pi]的范围。
     def goal_angle(self, self_pos=None, goal_pos=None):
         if self_pos is None and goal_pos is None:
-            self_pos = self._dict_state["self_pos"]
-            goal_pos = self._dict_state["goal_pos"]
+            self_pos = self.dict_state["self_pos"]
+            goal_pos = self.dict_state["goal_pos"]
         # self_angle取值范围为[-pi/2, 3*pi/2]，在极坐标的0到3*pi/2是整数，3*pi/2到2pi为负数。
         self_pos_x, self_pos_y, self_angle = self_pos
         goal_pos_x, goal_pos_y = goal_pos
@@ -256,10 +268,10 @@ class NavEnvironment(gym.Env):
         state, _, _, [_, judge_result] = self._Cog_env.step([0, 0, 0, 0])
         self.curr_goal = 1
         self.time_taken = 0
-        self._obs_state = None
-        self._dict_state = None
-        self._obs_state, self._dict_state = self.transform_state(state, judge_result)
-        return self._obs_state
+        self.obs_state = None
+        self.dict_state = None
+        self.obs_state, self.dict_state = self.transform_state(state, judge_result)
+        return self.obs_state
 
     def render(self, mode="human"):
         pass
@@ -276,11 +288,13 @@ def main():
     # It will check your custom environment and output additional warnings if needed
     check_env(env)
     for i in range(3000):
-        env.step([-0.5, 0, 1])
+        env.step([0, 0, 1])
         r = env.reward()
         goal_angle = env.goal_angle()
         goal_rel_pos = env.goal_distance()
+        norm_self_pos, abs_goal_angle, norm_distance = env.dict_state["norm_self_pos"], env.dict_state["norm_abs_goal_angle"], env.dict_state["norm_distance"]
         print(f"reward: {r}, goal_angle: {goal_angle}, goal_rel_pos: {goal_rel_pos}")
+        print(f"norm_self_pos: {norm_self_pos}, abs_goal_angle: {abs_goal_angle}, norm_distance: {norm_distance}")
 
 
 if __name__ == '__main__':

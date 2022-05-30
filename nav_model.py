@@ -29,9 +29,9 @@ class NavCustomCombinedExtractor(BaseFeaturesExtractor):
                 extractors[key] = nn.Sequential(
                     nn.Conv1d(1, 1, kernel_size=3),
                     nn.MaxPool1d(kernel_size=3),
-                    nn.Tanh(),
+                    nn.ReLU(),
                     nn.Conv1d(1, 1, kernel_size=3),
-                    nn.Tanh(),
+                    nn.ReLU(),
                     nn.Flatten(),
                     nn.Linear(17, 16)
                 )

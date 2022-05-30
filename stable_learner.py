@@ -43,13 +43,16 @@ def init_model(env):
     )
     model = SAC("MultiInputPolicy",
                 env,
+                learning_starts=1000,
                 verbose=1,
                 tensorboard_log="./log/",
-                policy_kwargs=dict(
-                    features_extractor_class=NavCustomCombinedExtractor,
-                    net_arch=dict(pi=[256, 256], qf=[256, 256])
+                train_freq=100,
+                target_update_interval=1000,
+                policy_kwargs = dict(
+                features_extractor_class=NavCustomCombinedExtractor,
+                net_arch=dict(pi=[256, 128], qf=[512, 256, 256])
                 ),
-                learning_rate=0.001)
+    )
     # model = PPO(NavActorCriticPolicy,
     #             env,
     #             verbose=1,
@@ -57,14 +60,27 @@ def init_model(env):
     #             learning_rate=0.007,
     #             gamma=1
     #             )
-    # model = TD3("MlpPolicy",
+    # model = DDPG("MultiInputPolicy",
     #             env,
-    #             policy_kwargs=dict(net_arch=dict(pi=[256, 256], qf=[512, 256])),
+    #             policy_kwargs=dict(
+    #                 features_extractor_class=NavCustomCombinedExtractor,
+    #                 net_arch=dict(pi=[256, 256], qf=[256, 256])
+    #             ),
+    #             batch_size=256,
     #             verbose=1,
-    #             tensorboard_log="./log/",
-    #             gamma=1,
-    #             action_noise=action_noise
+    #             tensorboard_log="./log/"
     #             )
+    # model = TD3("MultiInputPolicy",
+    #             env,
+    #             policy_kwargs=dict(
+    #                 features_extractor_class=NavCustomCombinedExtractor,
+    #                 net_arch=dict(pi=[256, 128], qf=[512, 256, 256])
+    #             ),
+    #             action_noise=action_noise,
+    #             policy_delay=2000,
+    #             batch_size=64,
+    #             verbose=1,
+    #             tensorboard_log="./log/")
     # model = A2C("MlpPolicy",
     #             env,
     #             policy_kwargs=dict(net_arch=[512, 512, 256]),
