@@ -29,18 +29,32 @@ class NavCustomCombinedExtractor(BaseFeaturesExtractor):
                 extractors[key] = nn.Sequential(
                     nn.Conv1d(1, 1, kernel_size=3),
                     nn.MaxPool1d(kernel_size=3),
-                    # nn.Conv1d(1, 1, kernel_size=3),
-                    # nn.MaxPool1d(kernel_size=3),
-                    nn.Flatten()
+                    nn.Tanh(),
+                    nn.Conv1d(1, 1, kernel_size=3),
+                    nn.Tanh(),
+                    nn.Flatten(),
+                    nn.Linear(17, 16)
                 )
                 # extractors[key] = nn.Sequential(nn.MaxPool2d(4), nn.Flatten())
-                total_concat_size += 19
+                total_concat_size += 16
             elif key == "vec":
                 # Run through a simple MLP
                 # extractors[key] = nn.Linear(subspace.shape[0], 16)
                 # total_concat_size += 16
                 extractors[key] = nn.Identity()
                 total_concat_size += subspace.shape[0]
+            elif key == "image":
+                extractors[key] = nn.Sequential(
+                    nn.Conv2d(3, 32, kernel_size=3, padding=0),
+                    nn.ReLU(),
+                    nn.Conv2d(32, 64, kernel_size=3, padding=0),
+                    nn.ReLU(),
+                    nn.Flatten(),
+                    nn.Linear(230400, 128),
+                    nn.Tanh(),
+                    nn.Linear(128, 32)
+                )
+                total_concat_size += 32 # TODO
 
         self.extractors = nn.ModuleDict(extractors)
 
@@ -80,17 +94,20 @@ class NavNetwork(nn.Module):
         self.latent_dim_pi = last_layer_dim_pi
         self.latent_dim_vf = last_layer_dim_vf
 
-        self.shared_net = nn.Sequential(
-            nn.Linear(feature_dim, 128), nn.ReLU(),
+        # self.shared_net = nn.Sequential(
+            # nn.Linear(feature_dim, 64), nn.Tanh(),
             # nn.Linear(128, 128), nn.ReLU()
-        )
+        # )
+
         # Policy network
         self.policy_net = nn.Sequential(
-            nn.Linear(128, last_layer_dim_pi), nn.ReLU()
+            nn.Linear(feature_dim, 64), nn.Tanh(),
+            nn.Linear(64, last_layer_dim_pi), nn.Tanh()
         )
         # Value network
         self.value_net = nn.Sequential(
-            nn.Linear(128, last_layer_dim_vf), nn.ReLU()
+            nn.Linear(feature_dim, 64), nn.Tanh(),
+            nn.Linear(64, last_layer_dim_vf), nn.Tanh()
         )
 
     def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
@@ -98,16 +115,17 @@ class NavNetwork(nn.Module):
         :return: (th.Tensor, th.Tensor) latent_policy, latent_value of the specified network.
             If all layers are shared, then ``latent_policy == latent_value``
         """
-        shared = self.shared_net(features)
-        return self.policy_net(shared), self.value_net(shared)
+        pi = self.policy_net(features)
+        vl = self.value_net(features)
+        return pi, vl
 
     def forward_actor(self, features: th.Tensor) -> th.Tensor:
-        shared = self.shared_net(features)
-        return self.policy_net(shared)
+        pi = self.policy_net(features)
+        return pi
 
     def forward_critic(self, features: th.Tensor) -> th.Tensor:
-        shared = self.shared_net(features)
-        return self.value_net(shared)
+        vl = self.value_net(features)
+        return vl
 
 
 class NavActorCriticPolicy(ActorCriticPolicy):
