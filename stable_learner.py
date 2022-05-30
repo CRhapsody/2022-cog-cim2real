@@ -8,6 +8,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.noise import NormalActionNoise
+from nav_model import NavActorCriticPolicy
 import numpy as np
 
 
@@ -36,17 +37,18 @@ def init_model(env):
     # Custom actor and critic architecture
     # Create the agent
     action_noise = NormalActionNoise(mean=np.zeros(1), sigma=0.1*np.ones(1))
-    model = PPO("MlpPolicy",
+    model = PPO(NavActorCriticPolicy,
                 env,
-                policy_kwargs=dict(net_arch=[256, 256, dict(vf=[128], pi=[128])]),
                 verbose=1,
                 tensorboard_log="./log/",
                 )
     # model = TD3("MlpPolicy",
     #             env,
-    #             policy_kwargs=dict(net_arch=dict(pi=[512, 256, 256], qf=[512, 256, 256])),
+    #             policy_kwargs=dict(net_arch=dict(pi=[256, 256], qf=[512, 256])),
     #             verbose=1,
-    #             tensorboard_log="./log/"
+    #             tensorboard_log="./log/",
+    #             gamma=1,
+    #             action_noise=action_noise
     #             )
     # model = A2C("MlpPolicy",
     #             env,
@@ -74,17 +76,24 @@ def train(model):
         evaluate(p)
 
 
-def evaluate(model_path):
+def evaluate(model_path, rename_with_reward=True):
     env = init_env(worker_number=100)
     model = init_model(env)
     model.load(model_path)
-    mean_reward, _ = evaluate_policy(model, model.get_env(), n_eval_episodes=1)
+    mean_reward = evaluate_model(model)
     print(f"model_path: {model_path}, mean_reward: {mean_reward}")
-    os.rename(model_path + ".zip", model_path + f"_mean_reward_{mean_reward}.zip")
+    if rename_with_reward:
+        os.rename(model_path + ".zip", model_path + f"_mean_reward_{mean_reward}.zip")
     env.close()
 
 
+def evaluate_model(model):
+    mean_reward, _ = evaluate_policy(model, model.get_env(), n_eval_episodes=1)
+    return mean_reward
+
+
 def learn():
+    # env = init_env(1)
     env = init_env_vec([1, 2, 3])
     model = init_model(env)
     train(model)
@@ -97,10 +106,18 @@ def continual_learn(model_path):
     train(model)
 
 
+def test():
+    env = init_env(1)
+    model = init_model(env)
+    mean_reward = evaluate_model(model)
+    print(f"mean_reward: {mean_reward}")
+
+
 def main():
     learn()
     # continual_learn("stable_baseline_models/model_05_30_09_32_45_mean_reward_-65561.360782")
 
 
 if __name__ == '__main__':
+    # test()
     main()
