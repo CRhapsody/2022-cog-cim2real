@@ -1,12 +1,5 @@
-
-
-# from __future__ import absolute_import
-# from __future__ import division
-# from __future__ import print_function
-
-from tkinter import _flatten
 from gym import Env
-from CogEnvDecoder import CogEnvDecoder
+from Cogenvdecoder.CogEnvDecoder import CogEnvDecoder
 import abc
 import tensorflow as tf
 
@@ -21,6 +14,8 @@ from tf_agents.environments import wrappers
 from tf_agents.environments import suite_gym
 from tf_agents.trajectories import time_step as ts
 import math
+import itertools
+
 
 class Environment(py_environment.PyEnvironment):
     def __init__(self, Cog_env : CogEnvDecoder) -> None:
@@ -43,7 +38,7 @@ class Environment(py_environment.PyEnvironment):
         else:
             # list(_flatten(state["vector"]))
             # temp_state = np.append(state["vector"],state["laser"],axis = 0)
-            return np.array(list(_flatten(state["vector"]))+state["laser"].tolist(), dtype=np.float32)
+            return np.array(np.hstack(state["vector"]).tolist() + state["laser"].tolist(), dtype=np.float32)
     
     def action_spec(self):
         return self._action_spec 
@@ -51,6 +46,9 @@ class Environment(py_environment.PyEnvironment):
     def observation_spec(self):
         return self._observation_spec
 
+    @staticmethod
+    def __flatten_lists(lists):
+        return list(itertools.chain.from_iterable(lists))
 
     def _reset(self):
         state = self._Cog_env.reset()
@@ -78,12 +76,17 @@ class Environment(py_environment.PyEnvironment):
         #             np.array([self._state], dtype=np.int32), reward=0.0, discount=1.0)
 
 def main():
-    env = CogEnvDecoder(env_name="win_v1/RealGame.exe", no_graphics=False, time_scale=1, worker_id=1)
-    action = [0.5, 0.5, 0.1, 0]
+    env = CogEnvDecoder(env_name="C:\\Users\\Administrator\\PycharmProjects\\2022-cog-cim2real\\win_v2.1\\cog_sim2real_env.exe", no_graphics=False, time_scale=1, worker_id=1)
     env = Environment(Cog_env= env)
-    env.reset()
-    step = env.step(action=action)
-    pass 
+    num_episodes = 10
+    num_steps_per_episode = 500  # max: 1500
+    for i in range(num_episodes):
+        observation = env.reset()
+        for j in range(num_steps_per_episode):
+            # action = env.action_space.sample()
+            action = [0, 0, math.pi / 2, 0]
+            obs, reward, done, info = env.step(action)
+            print(reward)
 
 if __name__ == "__main__":
     main()

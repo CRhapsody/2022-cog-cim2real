@@ -34,7 +34,7 @@ from tf_agents.environments import tf_py_environment
 from tf_agents.drivers import dynamic_step_driver
 
 from environment import Environment
-from CogEnvDecoder import CogEnvDecoder
+from Cogenvdecoder.CogEnvDecoder import CogEnvDecoder
 from parameter_list import *
 use_gpu = True
 
@@ -43,7 +43,10 @@ tempdir = tempfile.gettempdir()
 
 class Agent():
     def __init__(self) -> None:
-        collect_Cog_env = CogEnvDecoder(env_name="D:\\COG-sim2real-challenge\\win_v1\\RealGame.exe", no_graphics=False, time_scale=1, worker_id=1)
+        collect_Cog_env = CogEnvDecoder(env_name="C:\\Users\\Administrator\\PycharmProjects\\2022-cog-cim2real\\win_v2.1\\cog_sim2real_env.exe",
+                                        no_graphics=False,
+                                        time_scale=1,
+                                        worker_id=1)
         self.py_collect_env = Environment(Cog_env= collect_Cog_env)
         self.tf_collect_env = tf_py_environment.TFPyEnvironment(self.py_collect_env)
 
@@ -135,26 +138,12 @@ class Agent():
 
     #建立 reverb replay buffer
     def init_replay_buffer(self,table_name = 'uniform_table',sequence_length=2):
-        # table = reverb.Table(
-        #     table_name,
-        #     max_size=replay_buffer_capacity,
-        #     sampler=reverb.selectors.Uniform(),
-        #     remover=reverb.selectors.Fifo(),
-        #     rate_limiter=reverb.rate_limiters.MinSize(1))
-
-        # reverb_server = reverb.Server([table])
-
-        # replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
-        #     self.tf_agent.collect_data_spec,
-        #     sequence_length=sequence_length,
-        #     table_name=table_name,
-        #     local_server=reverb_server)
 
         replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
                 self.tf_agent.collect_data_spec,
                 batch_size = self.tf_collect_env.batch_size)
         
-        return replay_buffer #reverb_server,
+        return replay_buffer
 
 
     

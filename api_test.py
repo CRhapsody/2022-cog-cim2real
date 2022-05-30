@@ -1,3 +1,5 @@
+import math
+
 from Cogenvdecoder.CogEnvDecoder import CogEnvDecoder
 import numpy as np
 import cv2
@@ -25,7 +27,7 @@ def check_state(state, info=None):
 
 
 # env = CogEnvDecoder(env_name="linux_V1/1.x86_64", no_graphics=False, time_scale=1, worker_id=1) # linux os
-env = CogEnvDecoder(env_name="win_v1/RealGame.exe", no_graphics=False, time_scale=1, worker_id=1) # windows os
+env = CogEnvDecoder(env_name="win_v2.1/cog_sim2real_env.exe", no_graphics=False, time_scale=1, worker_id=1) # windows os
 # env_name: path of the simulator
 # no_graphics: should use headless mode [Warning: if no_graphics is True, image if invalid!]
 # time_scale: useful for speedup collecting data during training, max value is 100
@@ -38,7 +40,7 @@ for i in range(num_episodes):
     
     for j in range(num_steps_per_episode):
         # action = env.action_space.sample()
-        action = [0.5, 0.5, 0.1, 0]  # [vx, vy, vw, fire]; vx: the velocity at which the vehicle moves forward, vy: the velocity at which the vehicle moves to the left, vw: Angular speed of the vehicle counterclockwise rotation, fire: Shoot or not
+        action = [0, 1, 0, 0]  # [vx, vy, vw, fire]; vx: the velocity at which the vehicle moves forward, vy: the velocity at which the vehicle moves to the left, vw: Angular speed of the vehicle counterclockwise rotation, fire: Shoot or not
         obs, reward, done, info = env.step(action)
         print(reward)
         cv2.imshow("color_image", obs["color_image"])
@@ -46,3 +48,7 @@ for i in range(num_episodes):
         check_state(obs, info)
         # print(j)
         print(reward)
+
+
+if __name__ == '__main__':
+    pass
